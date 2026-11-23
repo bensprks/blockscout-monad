@@ -40,23 +40,32 @@ them.
 ### Changes in this fork
 
 - `docker-compose/monad-devnet.yml`: a profile for the type `0x40` devnet (chain 20143).
+- `docker-compose/proxy/explorer.conf.template`: larger header buffers, without which browsers
+  get a 502 from the proxy.
 - Frontend fork: "Txn type: 64" is shown as "Txn type: 64 (Universal, 0x40)".
 
 There is no `monad` chain type yet. A chain type exists to hold extra columns and parsing, and
 phase 0 has neither.
 
-### Not verified yet
+### Verified on the devnet
 
-None of this has been run against a node. When this was written the shared devnet was returning
-502, and no Docker or Elixir toolchain was available. The claims above come from reading the code
-at the base tags. Still to check on a live node:
+Checked on 2026-11-23 against the shared devnet (chain 20143, node
+`Monad/v0.12.2-rc-593-ga05418d5`), with the stack from `docker-compose/monad-devnet.yml`:
 
-- A block containing type `0x40` transactions imports, and the transaction page renders.
+- Blocks containing type `0x40` transactions import with no backend code change, and API v2
+  returns `"type": 64` for them.
+- The transaction page renders "Txn type: 64 (Universal, 0x40)".
 - `eth_getBlockReceipts` and `debug_traceBlockByNumber` (with `callTracer`) return what the `geth`
-  variant expects for type `0x40` transactions.
-- The containers can resolve the devnet's Tailscale hostname.
+  variant expects.
+- `apps/ethereum_jsonrpc` has parser tests built from the devnet's transaction and receipt
+  responses.
 
-A parser regression test built from a real devnet response belongs here once one can be captured.
+What this does not cover: every transaction the indexer had seen on the devnet was a plain value
+transfer between accounts. Contract creation, call data, logs, access lists and failed
+transactions of type `0x40` have not been exercised.
+
+Compared with a type `0x2` transaction object from the same node, a type `0x40` one has no
+`accessList` key (type `0x2` returns `[]`). Blockscout does not read that key.
 
 ## Running against the devnet
 
@@ -70,6 +79,29 @@ docker compose -f monad-devnet.yml up --build -d
 The explorer is served at http://localhost. The node endpoints, chain id and frontend checkout
 path can be overridden from the shell; the variables are listed at the top of
 `monad-devnet.yml`.
+
+The devnet is only reachable over Tailscale. With Colima on macOS, containers reach it through
+the host's Tailscale connection with no extra setup.
+
+A full sync of the devnet (about 1.4 million blocks, nearly all empty) takes between one and two hours.
+Catch-up runs from the chain tip downwards, so the oldest transactions appear last.
+
+## Node behaviour that affects indexers
+
+Seen on the devnet node on 2026-11-23. Worth raising with the node team before an explorer team
+finds it.
+
+When requests overlap, the node answers `"result": null` for blocks that exist. With ten batches
+of ten requests in flight, 36 to 64 of 500 `eth_getBlockByNumber` calls and 145 of 500
+`eth_getBlockReceipts` calls came back `null`; one batch at a time, none of 50 did. Under the same
+load `debug_traceBlockByNumber` fails with `-32602 Block requested not found`.
+
+Blockscout treats `null` as a missing block and retries, so it converges, but with its default
+catch-up settings (ten concurrent batches of ten) most batches failed and the sync crawled. The
+devnet profile therefore fetches one batch of 500 blocks at a time, which ran at roughly 170 to
+270 blocks per second with no failed batches. An indexer that reads `null` as "this block does not
+exist" would silently skip blocks: a one-off scan of `eth_getBlockTransactionCountByNumber` with
+four requests in flight missed three of the five transactions in one range.
 
 ## Responses that would stall the indexer
 
