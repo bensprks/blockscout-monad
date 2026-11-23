@@ -98,10 +98,17 @@ load `debug_traceBlockByNumber` fails with `-32602 Block requested not found`.
 
 Blockscout treats `null` as a missing block and retries, so it converges, but with its default
 catch-up settings (ten concurrent batches of ten) most batches failed and the sync crawled. The
-devnet profile therefore fetches one batch of 500 blocks at a time, which ran at roughly 170 to
-270 blocks per second with no failed batches. An indexer that reads `null` as "this block does not
-exist" would silently skip blocks: a one-off scan of `eth_getBlockTransactionCountByNumber` with
-four requests in flight missed three of the five transactions in one range.
+devnet profile therefore fetches one batch of 500 blocks at a time. Over five minutes that
+imported about 226 blocks per second, with 5 of 137 batches failing and retried.
+
+Traces stay in batches of ten. Blockscout requests a trace for every block, empty or not, and
+with batches of 500 those requests overlapped block import for long enough that the failures came
+back and the sync fell to about 47 blocks per second. In small batches traces lag behind block
+import, so the internal transactions of old blocks arrive hours after the blocks do.
+
+An indexer that reads `null` as "this block does not exist" would silently skip blocks: a one-off
+scan of `eth_getBlockTransactionCountByNumber` with four requests in flight missed three of the
+five transactions in one range.
 
 ## Responses that would stall the indexer
 
