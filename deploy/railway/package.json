@@ -1,0 +1,8 @@
+{
+  "name": "monad-explorer-railway",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "railway": "3.17.0"
+  }
+}
