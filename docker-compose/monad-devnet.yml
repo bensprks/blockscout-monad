@@ -20,10 +20,13 @@ services:
       file: ./services/redis.yml
       service: redis-db
 
+  # Postgres data lives in a named volume: a bind mount from a macOS host cannot be chowned.
   db-init:
     extends:
       file: ./services/db.yml
       service: db-init
+    volumes:
+      - db-data:/var/lib/postgresql/data
 
   db:
     depends_on:
@@ -32,6 +35,8 @@ services:
     extends:
       file: ./services/db.yml
       service: db
+    volumes:
+      - db-data:/var/lib/postgresql/data
 
   backend:
     depends_on:
@@ -75,6 +80,8 @@ services:
       service: frontend
     image: blockscout-monad-frontend:local
     pull_policy: build
+    # The upstream service pins linux/amd64 for its published image. Build for the host instead.
+    platform: !reset null
     build:
       context: ${FRONTEND_CONTEXT:-../../blockscout-frontend-monad}
     environment:
@@ -85,8 +92,12 @@ services:
       NEXT_PUBLIC_NETWORK_CURRENCY_NAME: MON
       NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL: MON
       NEXT_PUBLIC_HOMEPAGE_CHARTS: '[]'
+      NEXT_PUBLIC_AD_BANNER_PROVIDER: none
+      NEXT_PUBLIC_AD_TEXT_PROVIDER: none
       NEXT_PUBLIC_STATS_API_HOST:
       NEXT_PUBLIC_VISUALIZE_API_HOST:
+      # Deprecated since frontend v2.7.0; the container refuses to start while it is set.
+      NEXT_PUBLIC_API_SPEC_URL:
 
   proxy:
     depends_on:
@@ -100,3 +111,4 @@ services:
 
 volumes:
   backend-dets:
+  db-data:
