@@ -1,0 +1,33 @@
+# Added by the Monad fork on 2026-11-23. See ../README.md.
+{
+	admin off
+	persist_config off
+}
+
+# Railway ends TLS at its edge; a port-only address keeps Caddy on plain HTTP.
+:{$PORT:8080} {
+	encode zstd gzip
+
+	header -Server
+
+	# Railway's healthcheck, open without the password.
+	handle /health {
+		respond "ok" 200
+	}
+
+	handle {
+		basic_auth {
+			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+		}
+
+		# The backend owns the API and the WebSocket; everything else is the frontend.
+		@backend path /api /api/* /socket /socket/* /sitemap.xml
+		handle @backend {
+			reverse_proxy {$BACKEND_URL}
+		}
+
+		handle {
+			reverse_proxy {$FRONTEND_URL}
+		}
+	}
+}
