@@ -10,24 +10,18 @@
 
 	header -Server
 
-	# Railway's healthcheck, open without the password.
+	# Railway's healthcheck.
 	handle /health {
 		respond "ok" 200
 	}
 
+	# The backend owns the API and the WebSocket; everything else is the frontend.
+	@backend path /api /api/* /socket /socket/* /sitemap.xml
+	handle @backend {
+		reverse_proxy {$BACKEND_URL}
+	}
+
 	handle {
-		basic_auth {
-			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
-		}
-
-		# The backend owns the API and the WebSocket; everything else is the frontend.
-		@backend path /api /api/* /socket /socket/* /sitemap.xml
-		handle @backend {
-			reverse_proxy {$BACKEND_URL}
-		}
-
-		handle {
-			reverse_proxy {$FRONTEND_URL}
-		}
+		reverse_proxy {$FRONTEND_URL}
 	}
 }

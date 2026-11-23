@@ -100,15 +100,12 @@ export default defineRailway(() => {
     },
   });
 
-  // The only public service: Basic Auth, then the backend or the frontend by path.
+  // The only public service: routes to the backend or the frontend by path.
   const gateway = service("gateway", {
     source: empty(),
     healthcheck: "/health",
     variables: {
       PORT: "8080",
-      // Set in the dashboard, kept by apply.
-      BASIC_AUTH_USER: preserve(),
-      BASIC_AUTH_HASH: preserve(),
       BACKEND_URL: "http://${{backend.RAILWAY_PRIVATE_DOMAIN}}:4000",
       FRONTEND_URL: "http://${{frontend.RAILWAY_PRIVATE_DOMAIN}}:3000",
     },

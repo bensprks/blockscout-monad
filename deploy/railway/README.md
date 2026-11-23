@@ -2,14 +2,14 @@
 
 Added by the Monad fork on 2026-11-23.
 
-Runs the explorer for the type `0x40` devnet in the `category-labs` Railway workspace, behind a
-username and password. It follows the demos in `category-labs/category-integrations`, with two
-differences: the node is not part of the project, and the services are uploaded from local
-checkouts instead of built from GitHub.
+Runs the explorer for the type `0x40` devnet in the `category-labs` Railway workspace, on a
+public URL with no login. It follows the demos in `category-labs/category-integrations`, with
+three differences: there is no password, the node is not part of the project, and the services
+are uploaded from local checkouts instead of built from GitHub.
 
 | Service | Public | What it is |
 | --- | --- | --- |
-| `gateway` | Yes | Caddy. Basic Auth on every path but `/health`, then `/api` and `/socket` to the backend and the rest to the frontend. |
+| `gateway` | Yes | Caddy. Sends `/api` and `/socket` to the backend and the rest to the frontend. |
 | `frontend` | No | The frontend fork. |
 | `backend` | No | This repository: indexer and API. |
 | `postgres` | No | Railway's Postgres. |
@@ -46,15 +46,8 @@ Run the `railway` commands from `deploy/railway/`.
 
 3. `railway config plan`, then `railway config apply`. This creates the database and four empty
    services.
-4. Set the values `railway.ts` leaves out. In the dashboard, as sealed variables:
-   - `devnet-proxy`: `TS_AUTHKEY`. Until it is set the service restarts in a loop.
-   - `gateway`: `BASIC_AUTH_USER`, and `BASIC_AUTH_HASH` from
-
-     ```
-     docker run --rm caddy:2.11.7-alpine caddy hash-password --plaintext 'YOUR_PASSWORD'
-     ```
-
-     Until both are set every path but `/health` answers 401.
+4. Set the values `railway.ts` leaves out. In the dashboard, as a sealed variable on
+   `devnet-proxy`: `TS_AUTHKEY`. Until it is set the service restarts in a loop.
 
    And the backend's secret, generated and set without ever being shown:
 
@@ -103,6 +96,7 @@ Run the matching `railway up` line again. Change settings in `.railway/railway.t
 - A fresh database syncs the whole devnet from the tip downwards. That takes about two hours,
   and the oldest transactions appear last. Restart `backend` once block import has finished, so
   that traces for the blocks with transactions run first. `MONAD.md` explains both.
-- Anyone with the password can read the explorer. Blockscout's licence limits this fork to
-  internal use, so keep the password inside the company.
+- The URL is public: anyone who has it can read the explorer. Blockscout's licence limits
+  modified versions to internal use, so a public deployment of this fork needs either a
+  commercial licence from Blockscout or a decision to accept that risk.
 - The explorer does not publish a node RPC URL, so wallets cannot be connected through it.
