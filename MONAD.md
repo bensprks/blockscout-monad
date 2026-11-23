@@ -60,9 +60,11 @@ Checked on 2026-11-23 against the shared devnet (chain 20143, node
 - `apps/ethereum_jsonrpc` has parser tests built from the devnet's transaction and receipt
   responses.
 
-What this does not cover: every transaction the indexer had seen on the devnet was a plain value
-transfer between accounts. Contract creation, call data, logs, access lists and failed
-transactions of type `0x40` have not been exercised.
+A full sync imported 1,379,726 blocks with no gaps and 18 transactions: 17 of type `0x40` and
+one of type `0x2`, all successful.
+
+What this does not cover: all 18 are plain value transfers between accounts. Contract creation,
+call data, logs, access lists and failed transactions of type `0x40` have not been exercised.
 
 Compared with a type `0x2` transaction object from the same node, a type `0x40` one has no
 `accessList` key (type `0x2` returns `[]`). Blockscout does not read that key.
@@ -83,8 +85,12 @@ path can be overridden from the shell; the variables are listed at the top of
 The devnet is only reachable over Tailscale. With Colima on macOS, containers reach it through
 the host's Tailscale connection with no extra setup.
 
-A full sync of the devnet (about 1.4 million blocks, nearly all empty) takes between one and two hours.
+A full sync of the devnet (about 1.4 million blocks, nearly all empty) takes about two hours.
 Catch-up runs from the chain tip downwards, so the oldest transactions appear last.
+
+Restart the backend once block import has finished. The trace queue is in memory and by then
+holds millions of empty blocks; after a restart it is rebuilt from the blocks that have
+transactions, and their internal transactions appear within a minute or two.
 
 ## Node behaviour that affects indexers
 
