@@ -70,13 +70,12 @@ services:
       ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: 'true'
       INDEXER_DISABLE_BLOCK_REWARD_FETCHER: 'true'
       INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: 'false'
-      # The devnet node answers null for existing blocks when requests overlap, so fetch serially
-      # in larger batches. Traces are requested for every block, empty or not, so they need the
-      # same batch size to keep up with block import.
+      # The devnet node answers null for existing blocks when requests overlap, so fetch blocks
+      # serially in large batches. Traces stay in small batches: a large trace request overlaps
+      # block import for long enough to bring the failures back.
       INDEXER_CATCHUP_BLOCKS_CONCURRENCY: '1'
       INDEXER_CATCHUP_BLOCKS_BATCH_SIZE: '500'
       INDEXER_INTERNAL_TRANSACTIONS_CONCURRENCY: '1'
-      INDEXER_INTERNAL_TRANSACTIONS_BATCH_SIZE: '500'
 
   frontend:
     depends_on:
