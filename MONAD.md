@@ -2,7 +2,7 @@
 
 Added by the Monad fork on 2026-11-20.
 
-This is a private fork of Blockscout used as a reference for what a block explorer has to change to
+This is a fork of Blockscout used as a reference for what a block explorer has to change to
 support Monad's universal transaction type (`0x40`). It tracks the protocol in phases; only phase 0
 is implemented.
 
@@ -11,8 +11,9 @@ is implemented.
 | `bensprks/blockscout-monad` (this one) | `blockscout/blockscout` | `v12.0.4` |
 | `bensprks/blockscout-frontend-monad` | `blockscout/frontend` | `v2.13.0` |
 
-The protocol is specified in the "Universal Transaction Type" Notion page. The node implementation
-is in `category-labs/monad-bft#3352` and `category-labs/monad#2840`.
+The node implementation is in `category-labs/monad-bft#3352` and `category-labs/monad#2840`. The
+protocol specification is not public yet: what this document says about later phases comes from
+that specification and may change.
 
 ## Phase 0: what an explorer has to change
 
@@ -49,7 +50,7 @@ phase 0 has neither.
 
 ### Verified on the devnet
 
-Checked on 2026-11-23 against the shared devnet (chain 20143, node
+Checked on 2026-11-23 against the devnet (chain 20143, node
 `Monad/v0.12.2-rc-593-ga05418d5`), with the stack from `docker-compose/monad-devnet.yml`:
 
 - Blocks containing type `0x40` transactions import with no backend code change, and API v2
@@ -71,19 +72,21 @@ Compared with a type `0x2` transaction object from the same node, a type `0x40` 
 
 ## Running against the devnet
 
-Check out both forks side by side, then:
+Check out both forks side by side, then give the profile a node and start it:
 
 ```bash
 cd docker-compose
+export MONAD_RPC_HTTP_URL=https://<node>:<http port>/
+export MONAD_RPC_WS_URL=wss://<node>:<ws port>/
 docker compose -f monad-devnet.yml up --build -d
 ```
 
-The explorer is served at http://localhost. The node endpoints, chain id and frontend checkout
-path can be overridden from the shell; the variables are listed at the top of
-`monad-devnet.yml`.
+The explorer is served at http://localhost. The two endpoints can also go in a `.env` file next to
+`monad-devnet.yml`. The chain id and the frontend checkout path have defaults that can be
+overridden; they are listed at the top of that file.
 
-The devnet is only reachable over Tailscale. With Colima on macOS, containers reach it through
-the host's Tailscale connection with no extra setup.
+The devnet node is not public: it is reachable only over a private Tailscale network. With Colima
+on macOS, containers reach it through the host's Tailscale connection with no extra setup.
 
 A full sync of the devnet (about 1.4 million blocks, nearly all empty) takes about two hours.
 Catch-up runs from the chain tip downwards, so the oldest transactions appear last.
@@ -94,8 +97,8 @@ transactions, and their internal transactions appear within a minute or two.
 
 ## Node behaviour that affects indexers
 
-Seen on the devnet node on 2026-11-23. Worth raising with the node team before an explorer team
-finds it.
+Seen on the devnet node (`Monad/v0.12.2-rc-593-ga05418d5`) on 2026-11-23. That is a pre-release
+build, so this may not hold for later ones.
 
 When requests overlap, the node answers `"result": null` for blocks that exist. With ten batches
 of ten requests in flight, 36 to 64 of 500 `eth_getBlockByNumber` calls and 145 of 500
@@ -165,12 +168,13 @@ GitHub Actions is disabled on both forks, since upstream's workflows are not mea
 
 ## Licence
 
-Blockscout releases from v11.0.0 (backend) are under the Blockscout Software Licence, not GPL-3.
-For this fork that means:
+Both forks are under the Blockscout Software Licence, as upstream has been since v11.0.0 of the
+backend; see `LICENSE`. It is not GPL-3. Anyone who uses this code is bound by that licence,
+including its limits on commercial use and on distributing modified versions.
 
-- It is for internal use. Do not give the modified code, or images built from it, to third
-  parties without a commercial licence from Blockscout.
+In these forks:
+
 - Modified files carry a notice with the date of modification.
 - The "Made with Blockscout" footer stays.
 
-This document describes protocol impact and can be shared separately from the code.
+The forks are not affiliated with or endorsed by Blockscout.
