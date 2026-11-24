@@ -23,6 +23,9 @@ export default defineRailway(() => {
       PORT: "8545",
       // A reusable, ephemeral Tailscale auth key; set in the dashboard, kept by apply.
       TS_AUTHKEY: preserve(),
+      // The node's tailnet addresses, as https:// URLs; set with the CLI, kept by apply.
+      DEVNET_RPC_HTTP_UPSTREAM: preserve(),
+      DEVNET_RPC_WS_UPSTREAM: preserve(),
     },
     // start.sh exits when tailscaled or Caddy does; restart it every time.
     deploy: { restartPolicyType: "ALWAYS" },
