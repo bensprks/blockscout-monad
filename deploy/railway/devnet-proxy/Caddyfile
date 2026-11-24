@@ -20,11 +20,11 @@
 		respond "ok" 200
 	}
 	handle {
-		import devnet {$DEVNET_RPC_HTTP_UPSTREAM:https://sgp-006.tail08a730.ts.net:8080}
+		import devnet {$DEVNET_RPC_HTTP_UPSTREAM}
 	}
 }
 
 # WebSocket JSON-RPC.
 :8546 {
-	import devnet {$DEVNET_RPC_WS_UPSTREAM:https://sgp-006.tail08a730.ts.net:8081}
+	import devnet {$DEVNET_RPC_WS_UPSTREAM}
 }

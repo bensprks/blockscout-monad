@@ -6,10 +6,12 @@
 #
 #   docker compose -f monad-devnet.yml up --build -d
 #
-# Overridable from the shell:
+# Required, from the shell or a .env file next to this one:
 #   MONAD_RPC_HTTP_URL   node HTTP JSON-RPC endpoint
 #   MONAD_RPC_WS_URL     node WebSocket endpoint
-#   MONAD_CHAIN_ID       chain id
+#
+# Optional:
+#   MONAD_CHAIN_ID       chain id (default 20143)
 #   FRONTEND_CONTEXT     path to the frontend fork checkout
 
 version: '3.9'
@@ -56,9 +58,9 @@ services:
       - db:database
     environment:
       ETHEREUM_JSONRPC_VARIANT: geth
-      ETHEREUM_JSONRPC_HTTP_URL: ${MONAD_RPC_HTTP_URL:-https://sgp-006.tail08a730.ts.net:8080/}
-      ETHEREUM_JSONRPC_TRACE_URL: ${MONAD_RPC_HTTP_URL:-https://sgp-006.tail08a730.ts.net:8080/}
-      ETHEREUM_JSONRPC_WS_URL: ${MONAD_RPC_WS_URL:-wss://sgp-006.tail08a730.ts.net:8081/}
+      ETHEREUM_JSONRPC_HTTP_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}
+      ETHEREUM_JSONRPC_TRACE_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}
+      ETHEREUM_JSONRPC_WS_URL: ${MONAD_RPC_WS_URL:?set MONAD_RPC_WS_URL}
       CHAIN_ID: ${MONAD_CHAIN_ID:-20143}
       COIN: MON
       COIN_NAME: MON
@@ -93,7 +95,7 @@ services:
       NEXT_PUBLIC_NETWORK_NAME: Monad Devnet
       NEXT_PUBLIC_NETWORK_SHORT_NAME: Monad Devnet
       NEXT_PUBLIC_NETWORK_ID: ${MONAD_CHAIN_ID:-20143}
-      NEXT_PUBLIC_NETWORK_RPC_URL: ${MONAD_RPC_HTTP_URL:-https://sgp-006.tail08a730.ts.net:8080/}
+      NEXT_PUBLIC_NETWORK_RPC_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}
       NEXT_PUBLIC_NETWORK_CURRENCY_NAME: MON
       NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL: MON
       NEXT_PUBLIC_HOMEPAGE_CHARTS: '[]'

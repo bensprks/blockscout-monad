@@ -6,6 +6,8 @@
 set -eu
 
 : "${TS_AUTHKEY:?set TS_AUTHKEY to a Tailscale auth key}"
+: "${DEVNET_RPC_HTTP_UPSTREAM:?set DEVNET_RPC_HTTP_UPSTREAM to the node's HTTP JSON-RPC address}"
+: "${DEVNET_RPC_WS_UPSTREAM:?set DEVNET_RPC_WS_UPSTREAM to the node's WebSocket address, as https://}"
 
 /usr/local/bin/containerboot &
 tailscale=$!
