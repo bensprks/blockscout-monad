@@ -1,0 +1,30 @@
+# Added by the Monad fork on 2026-11-23. See ../README.md.
+{
+	admin off
+	persist_config off
+	auto_https off
+}
+
+(devnet) {
+	reverse_proxy {args[0]} {
+		# tailscaled's outbound proxy: the only route to the tailnet from this container.
+		transport http {
+			network_proxy url http://127.0.0.1:1055
+		}
+	}
+}
+
+# HTTP JSON-RPC.
+:8545 {
+	handle /health {
+		respond "ok" 200
+	}
+	handle {
+		import devnet {$DEVNET_RPC_HTTP_UPSTREAM}
+	}
+}
+
+# WebSocket JSON-RPC.
+:8546 {
+	import devnet {$DEVNET_RPC_WS_UPSTREAM}
+}

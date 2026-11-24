@@ -1,0 +1,121 @@
+# Added by the Monad fork on 2026-11-20. See ../MONAD.md.
+#
+# Explorer for the Monad universal transaction (type 0x40) devnet, without microservices.
+# Builds the backend from this checkout and the frontend from a sibling checkout of the
+# frontend fork.
+#
+#   docker compose -f monad-devnet.yml up --build -d
+#
+# Required, from the shell or a .env file next to this one:
+#   MONAD_RPC_HTTP_URL   node HTTP JSON-RPC endpoint
+#   MONAD_RPC_WS_URL     node WebSocket endpoint
+#
+# Optional:
+#   MONAD_CHAIN_ID       chain id (default 20143)
+#   FRONTEND_CONTEXT     path to the frontend fork checkout
+
+version: '3.9'
+
+services:
+  redis-db:
+    extends:
+      file: ./services/redis.yml
+      service: redis-db
+
+  # Postgres data lives in a named volume: a bind mount from a macOS host cannot be chowned.
+  db-init:
+    extends:
+      file: ./services/db.yml
+      service: db-init
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  db:
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    extends:
+      file: ./services/db.yml
+      service: db
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  backend:
+    depends_on:
+      - db
+      - redis-db
+    extends:
+      file: ./services/backend.yml
+      service: backend
+    image: blockscout-monad-backend:local
+    pull_policy: build
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+      args:
+        RELEASE_VERSION: 12.0.4
+    links:
+      - db:database
+    environment:
+      ETHEREUM_JSONRPC_VARIANT: geth
+      ETHEREUM_JSONRPC_HTTP_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}
+      ETHEREUM_JSONRPC_TRACE_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}
+      ETHEREUM_JSONRPC_WS_URL: ${MONAD_RPC_WS_URL:?set MONAD_RPC_WS_URL}
+      CHAIN_ID: ${MONAD_CHAIN_ID:-20143}
+      COIN: MON
+      COIN_NAME: MON
+      # Whole-block reads cost the node far fewer database lookups than per-hash reads.
+      ETHEREUM_JSONRPC_RECEIPTS_BY_BLOCK: 'true'
+      ETHEREUM_JSONRPC_GETH_TRACE_BY_BLOCK: 'true'
+      # The node has no txpool_content and keeps only recent state.
+      INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: 'true'
+      ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: 'true'
+      INDEXER_DISABLE_BLOCK_REWARD_FETCHER: 'true'
+      INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: 'false'
+      # The devnet node answers null for existing blocks when requests overlap, so fetch blocks
+      # serially in large batches. Traces stay in small batches: a large trace request overlaps
+      # block import for long enough to bring the failures back.
+      INDEXER_CATCHUP_BLOCKS_CONCURRENCY: '1'
+      INDEXER_CATCHUP_BLOCKS_BATCH_SIZE: '500'
+      INDEXER_INTERNAL_TRANSACTIONS_CONCURRENCY: '1'
+
+  frontend:
+    depends_on:
+      - backend
+    extends:
+      file: ./services/frontend.yml
+      service: frontend
+    image: blockscout-monad-frontend:local
+    pull_policy: build
+    # The upstream service pins linux/amd64 for its published image. Build for the host instead.
+    platform: !reset null
+    build:
+      context: ${FRONTEND_CONTEXT:-../../blockscout-frontend-monad}
+    environment:
+      NEXT_PUBLIC_NETWORK_NAME: Monad Devnet
+      NEXT_PUBLIC_NETWORK_SHORT_NAME: Monad Devnet
+      NEXT_PUBLIC_NETWORK_ID: ${MONAD_CHAIN_ID:-20143}
+      NEXT_PUBLIC_NETWORK_RPC_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}
+      NEXT_PUBLIC_NETWORK_CURRENCY_NAME: MON
+      NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL: MON
+      NEXT_PUBLIC_HOMEPAGE_CHARTS: '[]'
+      NEXT_PUBLIC_AD_BANNER_PROVIDER: none
+      NEXT_PUBLIC_AD_TEXT_PROVIDER: none
+      NEXT_PUBLIC_STATS_API_HOST:
+      NEXT_PUBLIC_VISUALIZE_API_HOST:
+      # Deprecated since frontend v2.7.0; the container refuses to start while it is set.
+      NEXT_PUBLIC_API_SPEC_URL:
+
+  proxy:
+    depends_on:
+      - backend
+      - frontend
+    extends:
+      file: ./services/nginx-explorer.yml
+      service: proxy
+    volumes:
+      - "./proxy/explorer.conf.template:/etc/nginx/templates/default.conf.template"
+
+volumes:
+  backend-dets:
+  db-data:
