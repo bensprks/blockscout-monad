@@ -2,10 +2,9 @@
 
 Added by the Monad fork on 2026-11-23.
 
-Runs the explorer for the type `0x40` devnet in the `category-labs` Railway workspace, on a
-public URL with no login. It follows the demos in `category-labs/category-integrations`, with
-three differences: there is no password, the node is not part of the project, and the services
-are uploaded from local checkouts instead of built from GitHub.
+Runs the explorer for the type `0x40` devnet on Railway, on a public URL with no login. The node
+is not part of the project, and the services are uploaded from local checkouts instead of built
+from GitHub.
 
 | Service | Public | What it is |
 | --- | --- | --- |
@@ -19,17 +18,15 @@ are uploaded from local checkouts instead of built from GitHub.
 
 ## Why the services are uploaded
 
-Railway's GitHub app in the `category-labs` workspace cannot see these private forks, and their
-code cannot move into `category-integrations`: that repository is GPL-3, and Blockscout's licence
-does not allow relicensing. `railway up` uploads a checkout and builds it on Railway, so a deploy
-is a command, not a push.
+The project was set up while these forks were out of reach of Railway's GitHub app. `railway up`
+uploads a checkout and builds it on Railway, so a deploy is a command, not a push.
 
 ## Requirements
 
-- Railway CLI 5.49 or newer, and a seat in the `category-labs` workspace.
+- Railway CLI 5.49 or newer, and a Railway workspace to create the project in.
 - Checkouts of this repository and of the frontend fork.
 - A Tailscale auth key that is reusable and ephemeral. Give it a tag whose ACL allows only the
-  devnet node's ports 8080 and 8081; a tagged key also avoids node key expiry. The auth key
+  devnet node's JSON-RPC ports; a tagged key also avoids node key expiry. The auth key
   itself still expires (90 days at most), after which a restart of `devnet-proxy` fails until
   the variable holds a new one.
 
@@ -41,13 +38,21 @@ Run the `railway` commands from `deploy/railway/`.
 2. Create the project and link this folder to its `production` environment:
 
    ```
-   railway init --name monad-universal-tx-explorer --workspace category-labs
+   railway init --name monad-universal-tx-explorer --workspace <workspace>
    ```
 
 3. `railway config plan`, then `railway config apply`. This creates the database and four empty
    services.
 4. Set the values `railway.ts` leaves out. In the dashboard, as a sealed variable on
    `devnet-proxy`: `TS_AUTHKEY`. Until it is set the service restarts in a loop.
+
+   The node's addresses on the tailnet, both as `https://` URLs:
+
+   ```
+   railway variables --service devnet-proxy --skip-deploys \
+     --set "DEVNET_RPC_HTTP_UPSTREAM=https://<node>:<http port>" \
+     --set "DEVNET_RPC_WS_UPSTREAM=https://<node>:<ws port>"
+   ```
 
    And the backend's secret, generated and set without ever being shown:
 
@@ -96,7 +101,6 @@ Run the matching `railway up` line again. Change settings in `.railway/railway.t
 - A fresh database syncs the whole devnet from the tip downwards. That takes about two hours,
   and the oldest transactions appear last. Restart `backend` once block import has finished, so
   that traces for the blocks with transactions run first. `MONAD.md` explains both.
-- The URL is public: anyone who has it can read the explorer. Blockscout's licence limits
-  modified versions to internal use, so a public deployment of this fork needs either a
-  commercial licence from Blockscout or a decision to accept that risk.
+- The URL is public: anyone who has it can read the explorer. The Blockscout Software Licence
+  governs what a deployment of this fork may be used for; see the licence section of `MONAD.md`.
 - The explorer does not publish a node RPC URL, so wallets cannot be connected through it.
