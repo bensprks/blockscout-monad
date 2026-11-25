@@ -6,6 +6,7 @@ import {
   preserve,
   project,
   service,
+  volume,
 } from "railway/iac";
 
 // Railway's reference syntax; it fills these in per environment.
@@ -19,9 +20,16 @@ export default defineRailway(() => {
   const devnetProxy = service("devnet-proxy", {
     source: empty(),
     healthcheck: "/health",
+    // Holds the tailnet identity, so the auth key is needed only once.
+    volumeMounts: {
+      "/var/lib/tailscale": volume("devnet-proxy-volume", {
+        region: "us-east4-eqdc4a",
+        sizeMB: 50000,
+      }),
+    },
     variables: {
       PORT: "8545",
-      // A reusable, ephemeral Tailscale auth key; set in the dashboard, kept by apply.
+      // A single-use, tagged Tailscale auth key; set in the dashboard, kept by apply.
       TS_AUTHKEY: preserve(),
       // The node's tailnet addresses, as https:// URLs; set with the CLI, kept by apply.
       DEVNET_RPC_HTTP_UPSTREAM: preserve(),
@@ -69,6 +77,10 @@ export default defineRailway(() => {
       INDEXER_CATCHUP_BLOCKS_CONCURRENCY: "1",
       INDEXER_CATCHUP_BLOCKS_BATCH_SIZE: "500",
       INDEXER_INTERNAL_TRANSACTIONS_CONCURRENCY: "1",
+
+      // The site is public and the node is not. Without this, POST /api/eth-rpc relays
+      // eth_call, eth_sendRawTransaction and six read methods from anyone to the node.
+      API_ETH_RPC_DISABLE_CORE_PROXY_METHODS: "true",
 
       // None of the microservices run here.
       MICROSERVICE_SC_VERIFIER_ENABLED: "false",
