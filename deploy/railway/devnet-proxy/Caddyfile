@@ -14,6 +14,15 @@
 	}
 }
 
+# Blockscout's JSON-RPC client crashes on an error response with no body, and enough of those
+# take the whole backend down. A 502 with a text body is a case it handles: it logs a bad
+# gateway and retries.
+(unreachable) {
+	handle_errors {
+		respond "devnet node unreachable" 502
+	}
+}
+
 # HTTP JSON-RPC.
 :8545 {
 	handle /health {
@@ -22,9 +31,11 @@
 	handle {
 		import devnet {$DEVNET_RPC_HTTP_UPSTREAM}
 	}
+	import unreachable
 }
 
 # WebSocket JSON-RPC.
 :8546 {
 	import devnet {$DEVNET_RPC_WS_UPSTREAM}
+	import unreachable
 }

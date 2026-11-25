@@ -9,10 +9,13 @@ COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY start.sh /start.sh
 
-# Userspace networking is containerboot's default. State stays in memory: every start
-# registers a new ephemeral node.
+# Userspace networking is containerboot's default. The node's identity is kept in
+# TS_STATE_DIR, which must be a volume. With TS_AUTH_ONCE the auth key is used on the first
+# start only, so a single-use key is enough.
 ENV TS_OUTBOUND_HTTP_PROXY_LISTEN=127.0.0.1:1055 \
     TS_ACCEPT_DNS=true \
-    TS_HOSTNAME=explorer-devnet-proxy
+    TS_HOSTNAME=explorer-devnet-proxy \
+    TS_STATE_DIR=/var/lib/tailscale \
+    TS_AUTH_ONCE=true
 
 ENTRYPOINT ["/start.sh"]
