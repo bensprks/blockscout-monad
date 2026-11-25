@@ -25,10 +25,8 @@ uploads a checkout and builds it on Railway, so a deploy is a command, not a pus
 
 - Railway CLI 5.49 or newer, and a Railway workspace to create the project in.
 - Checkouts of this repository and of the frontend fork.
-- A Tailscale auth key that is reusable and ephemeral. Give it a tag whose ACL allows only the
-  devnet node's JSON-RPC ports; a tagged key also avoids node key expiry. The auth key
-  itself still expires (90 days at most), after which a restart of `devnet-proxy` fails until
-  the variable holds a new one.
+- A Tailscale auth key for `devnet-proxy`, from a tailnet admin. See "Tailnet access" below
+  for what to ask for.
 
 ## First-time setup
 
@@ -41,8 +39,8 @@ Run the `railway` commands from `deploy/railway/`.
    railway init --name monad-universal-tx-explorer --workspace <workspace>
    ```
 
-3. `railway config plan`, then `railway config apply`. This creates the database and four empty
-   services.
+3. `railway config plan`, then `railway config apply`. This creates the database, four empty
+   services and the volume that keeps the proxy's tailnet identity.
 4. Set the values `railway.ts` leaves out. In the dashboard, as a sealed variable on
    `devnet-proxy`: `TS_AUTHKEY`. Until it is set the service restarts in a loop.
 
@@ -69,6 +67,28 @@ Run the `railway` commands from `deploy/railway/`.
    railway up ../.. --path-as-root --service backend --detach
    railway up <frontend checkout> --path-as-root --service frontend --detach
    ```
+
+## Tailnet access
+
+`devnet-proxy` is the only thing in the project that touches the tailnet. It makes outbound
+connections to the node's HTTP and WebSocket JSON-RPC ports and accepts nothing from the
+tailnet. It has no public address: only services in the same Railway project can reach it.
+
+Ask a tailnet admin for:
+
+- A tag for the device, with an access rule that lets that tag reach only the node's two
+  JSON-RPC ports, and no rule that lets anything reach the tag.
+- An auth key carrying that tag that is single-use, not ephemeral and pre-approved, with a short
+  expiry. It is spent on the first start; after that the device's identity lives on the
+  service's volume, so the key left in `TS_AUTHKEY` is worthless. A tagged device does not
+  expire.
+
+Do not join the device from a personal login: it would carry that person's access to the whole
+tailnet, and anyone who can open a shell in the Railway project could use it.
+
+The explorer itself is public, so the backend is configured not to relay JSON-RPC from visitors
+to the node (`API_ETH_RPC_DISABLE_CORE_PROXY_METHODS`). What reaches the node is the indexer's
+own requests.
 
 ## Loading an existing index
 
