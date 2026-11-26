@@ -41,6 +41,7 @@ them.
 ### Changes in this fork
 
 - `docker-compose/monad-devnet.yml`: a profile for the type `0x40` devnet (chain 20143).
+- `docker-compose/monad-devnet.host.yml`: overrides for running that profile on a shared host.
 - `docker-compose/proxy/explorer.conf.template`: larger header buffers, without which browsers
   get a 502 from the proxy.
 - Frontend fork: "Txn type: 64" is shown as "Txn type: 64 (Universal, 0x40)".
@@ -94,6 +95,42 @@ Catch-up runs from the chain tip downwards, so the oldest transactions appear la
 Restart the backend once block import has finished. The trace queue is in memory and by then
 holds millions of empty blocks; after a restart it is rebuilt from the blocks that have
 transactions, and their internal transactions appear within a minute or two.
+
+### On a host shared with other workloads
+
+`docker-compose/monad-devnet.host.yml` is a set of overrides for running the explorer next to
+something that must not be disturbed, such as the node itself. It publishes only the explorer,
+on one address and port, gives every service a CPU and a memory limit (about 2.7 cores and 8 GB
+in total), and expects the two images to be built beforehand.
+
+```bash
+# Build under whatever limit the host needs. With systemd, for example:
+systemd-run --user --scope -p CPUQuota=300% -p Nice=19 \
+  docker build -t blockscout-monad-backend:local --build-arg RELEASE_VERSION=12.0.4 \
+  -f docker/Dockerfile .
+# and the same for blockscout-monad-frontend:local, from the frontend checkout.
+
+cd docker-compose
+docker compose -f monad-devnet.yml -f monad-devnet.host.yml up -d
+```
+
+Set `EXPLORER_BIND` to the one address the explorer should listen on, and `EXPLORER_HOST` and
+`EXPLORER_PORT` to what browsers will use to reach it. The default is `127.0.0.1:8090`. Do not
+bind it to every interface on a host with a public address: published container ports bypass
+most host firewalls.
+
+It has been run this way with rootless Podman 5.7 behind `docker compose`. Three things differ
+from Docker there, and the overrides handle them: container links are refused, an empty volume
+takes the image's ownership on every start, and so Postgres has to run as the image's own user.
+Two more are left to the operator: enable lingering for the user (`loginctl enable-linger`) and
+the `podman-restart` user service, or the containers stop at logout and stay down after a
+reboot.
+
+Following the tip, the whole stack used about 0.4 of a core and 1.3 GB of memory. After the
+backend container is recreated, restart the `proxy` container: nginx keeps the old address.
+
+To skip the initial sync, load a dump of an already synced database into the `db` container
+before the backend first starts.
 
 ## Node behaviour that affects indexers
 
