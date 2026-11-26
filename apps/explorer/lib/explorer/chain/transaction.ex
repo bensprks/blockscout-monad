@@ -2237,7 +2237,7 @@ defmodule Explorer.Chain.Transaction do
       transaction. Empty for the transactions which are not the sponsored ones.
   """
   @spec calls_value_by_recipient(__MODULE__.t()) :: %{Hash.Address.t() => Wei.t()}
-  if @chain_type == :eden do
+  if @chain_type in [:eden, :monad] do
     def calls_value_by_recipient(%__MODULE__{calls: calls}) when is_list(calls) do
       Enum.reduce(calls, %{}, fn call, acc ->
         with {:ok, address_hash} <- call |> Map.get("to") |> Hash.Address.cast(),

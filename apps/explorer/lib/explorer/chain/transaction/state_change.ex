@@ -110,8 +110,25 @@ defmodule Explorer.Chain.Transaction.StateChange do
   # frame that moves nothing, so each call is also an internal transaction and is applied as one.
   # The `to_address_hash` and the `value` of such a transaction are compatibility fields derived
   # from the calls; crediting them here as well would count the value twice.
+  #
+  # Traces are fetched after the block is imported. Until they arrive the calls themselves are the
+  # only record of who receives what, so each recipient is credited from them instead. A call that
+  # creates a contract has no recipient yet and is credited once its trace is in.
   if @chain_type == :monad do
-    defp credit_recipients(coin_balances, %Transaction{calls: [_, _ | _]}), do: coin_balances
+    defp credit_recipients(coin_balances, %Transaction{calls: [_, _ | _], internal_transactions: [_ | _]}),
+      do: coin_balances
+
+    defp credit_recipients(coin_balances, %Transaction{calls: [_, _ | _]} = transaction) do
+      if error?(transaction) do
+        coin_balances
+      else
+        transaction
+        |> Transaction.calls_value_by_recipient()
+        |> Enum.reduce(coin_balances, fn {address_hash, value}, acc ->
+          update_balance(acc, address_hash, &Wei.sum(&1, value))
+        end)
+      end
+    end
   end
 
   defp credit_recipients(coin_balances, transaction) do
@@ -247,8 +264,10 @@ defmodule Explorer.Chain.Transaction.StateChange do
   """
   @spec from_loss(Transaction.t() | InternalTransaction.t()) :: Wei.t()
   if @chain_type == :monad do
-    # The sender of a batch pays the value of each call through its internal transaction.
-    def from_loss(%Transaction{calls: [_, _ | _]} = transaction), do: sender_fee(transaction)
+    # The sender of a traced batch pays the value of each call through its internal transaction.
+    # Before the traces arrive the sum of the calls, which is the transaction's `value`, is used.
+    def from_loss(%Transaction{calls: [_, _ | _], internal_transactions: [_ | _]} = transaction),
+      do: sender_fee(transaction)
   end
 
   def from_loss(%Transaction{} = transaction) do
