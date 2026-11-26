@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: index the recipients of the calls of Monad universal transactions.
 defmodule Indexer.Transform.Addresses do
   @moduledoc """
   Extract Addresses from data fetched from the Blockchain and structured as Blocks, InternalTransactions,
@@ -656,7 +657,7 @@ defmodule Indexer.Transform.Addresses do
 
   def extract_addresses_from_item(item, fields, state), do: Enum.flat_map(fields, &extract_fields(&1, item, state))
 
-  if @chain_type == :eden do
+  if @chain_type in [:eden, :monad] do
     alias Explorer.Chain
 
     @eden_call_fields [
@@ -666,7 +667,8 @@ defmodule Indexer.Transform.Addresses do
       ]
     ]
 
-    # The recipients of the calls batched in an Eden sponsored transaction are stored in the `calls`
+    # The recipients of the calls batched in an Eden sponsored transaction, or in a Monad universal
+    # transaction, are stored in the `calls`
     # JSON field, so they can't be declared in `@entity_to_address_map`, which supports the plain
     # fields only. The calls are flattened into the items of the shape the declarations expect
     # instead, so that the pending transactions keep being handled the same way.
