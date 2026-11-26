@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: register the monad chain type and its repo.
 defmodule Explorer.Repo do
   use Ecto.Repo,
     otp_app: :explorer,
@@ -144,6 +145,7 @@ defmodule Explorer.Repo do
         Explorer.Repo.Celo,
         Explorer.Repo.Eden,
         Explorer.Repo.Filecoin,
+        Explorer.Repo.Monad,
         Explorer.Repo.Optimism,
         Explorer.Repo.PolygonEdge,
         Explorer.Repo.RSK,

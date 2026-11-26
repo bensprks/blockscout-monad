@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: store the calls of Monad universal transactions (type 0x40).
 defmodule Explorer.Chain.Transaction.Schema do
   @moduledoc """
     Models transactions.
@@ -81,6 +82,14 @@ defmodule Explorer.Chain.Transaction.Schema do
                             end,
                             2
                           )
+
+                        :monad ->
+                          # elem(quote do ... end, 2) doesn't work with a single instruction
+                          quote do
+                            [
+                              field(:calls, {:array, :map})
+                            ]
+                          end
 
                         :suave ->
                           elem(
@@ -371,6 +380,9 @@ defmodule Explorer.Chain.Transaction do
                                 :eden ->
                                   ~w(fee_payer_address_hash calls)a
 
+                                :monad ->
+                                  ~w(calls)a
+
                                 :suave ->
                                   ~w(execution_node_hash wrapped_type wrapped_nonce wrapped_to_address_hash wrapped_gas wrapped_gas_price wrapped_max_priority_fee_per_gas wrapped_max_fee_per_gas wrapped_value wrapped_input wrapped_v wrapped_r wrapped_s wrapped_hash)a
 
@@ -533,7 +545,8 @@ defmodule Explorer.Chain.Transaction do
    * `wrapped_hash` - hash from the `wrapped` field (used by Suave)
    * `fee_payer_address` - sponsor address which pays for the transaction (used by Eden)
    * `fee_payer_address_hash` - `fee_payer_address` foreign key (used by Eden)
-   * `calls` - ordered list of the calls batched in a sponsored transaction (used by Eden)
+   * `calls` - ordered list of the calls batched in a sponsored transaction (used by Eden), or in a
+     universal transaction (used by Monad)
    * `operator_fee_scalar` - operatorFeeScalar is a uint32 scalar set by a chain operator (used by some OP chains)
    * `operator_fee_constant` - operatorFeeConstant is a uint64 constant set by a chain operator (used by some OP chains)
    * `da_footprint_gas_scalar` - daFootprintGasScalar is a uint16 scalar used to calculate daFootprint introduced in Jovian OP upgrade
