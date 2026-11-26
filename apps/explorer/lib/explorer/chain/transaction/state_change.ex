@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: do not count the value of a Monad batch twice.
 defmodule Explorer.Chain.Transaction.StateChange do
   @moduledoc """
     Helper functions and struct for storing state changes
@@ -103,6 +104,14 @@ defmodule Explorer.Chain.Transaction.StateChange do
         end)
       end
     end
+  end
+
+  # A Monad universal transaction with several calls is traced as one frame per call under a root
+  # frame that moves nothing, so each call is also an internal transaction and is applied as one.
+  # The `to_address_hash` and the `value` of such a transaction are compatibility fields derived
+  # from the calls; crediting them here as well would count the value twice.
+  if @chain_type == :monad do
+    defp credit_recipients(coin_balances, %Transaction{calls: [_, _ | _]}), do: coin_balances
   end
 
   defp credit_recipients(coin_balances, transaction) do
@@ -237,6 +246,11 @@ defmodule Explorer.Chain.Transaction.StateChange do
   or an internal transaction.
   """
   @spec from_loss(Transaction.t() | InternalTransaction.t()) :: Wei.t()
+  if @chain_type == :monad do
+    # The sender of a batch pays the value of each call through its internal transaction.
+    def from_loss(%Transaction{calls: [_, _ | _]} = transaction), do: sender_fee(transaction)
+  end
+
   def from_loss(%Transaction{} = transaction) do
     fee = sender_fee(transaction)
 
