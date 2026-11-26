@@ -25,6 +25,9 @@ services:
   db:
     # The base service publishes Postgres on every interface, with a password that is public.
     ports: !reset []
+    # Start as the image's own user. With rootless Podman an empty volume takes the image's
+    # ownership on every start, so the base service's fixed uid can never initialise it.
+    user: !reset null
     cpus: 1
     mem_limit: 4g
 
