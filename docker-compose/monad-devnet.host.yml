@@ -32,6 +32,8 @@ services:
     mem_limit: 4g
 
   backend:
+    # Podman has no container links, and the backend already reaches the database as "db".
+    links: !reset []
     build: !reset null
     pull_policy: never
     cpus: 1
