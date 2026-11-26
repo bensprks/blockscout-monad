@@ -88,6 +88,38 @@ With exactly one call, `to`, `value` and `input` repeat that call. Otherwise the
 `null`, `0x0` and `0x`. The receipt is unchanged; when a call creates a contract, its
 `contractAddress` is set.
 
+### What `calls` holds
+
+`calls` is not always the list the sender signed. From `category-labs/monad-bft#3387`, which adds
+batching to the node:
+
+| Transaction | `calls` in the JSON-RPC response |
+| --- | --- |
+| Mined, succeeded | Every call, in order |
+| Mined, failed | The calls attempted: the earlier ones, whose effects were rolled back, and the failing one. Calls signed after it are left out |
+| Pending | `[]` |
+
+The full signed list is in the raw transaction only. So for a failed batch:
+
+```json
+"status": "0x0",
+"calls": [
+  { "to": "0xe69a…b667", "value": "0x0", "input": "0x…03" },
+  { "to": "0xe69a…b667", "value": "0x0", "input": "0x…ff" }
+]
+```
+
+the first call ran and was undone, the second reverted, and nothing says whether a third was
+signed. An integrator has three different things to keep apart:
+
+- **Signed intent**: decode the raw transaction. `calls` cannot give it for a failed or pending one.
+- **Attempted calls**: `calls` of a mined transaction.
+- **Actual transfers**: the calls of a transaction whose receipt `status` is `0x1`. A batch is
+  atomic, so a failed one transfers nothing, whatever its calls say.
+
+This fork stores and shows `calls` as the node returns them. It does not decode the raw
+transaction, and the devnet profile does not fetch pending transactions.
+
 `debug_traceTransaction` with `callTracer` returns a single-call transaction as one frame, as for
 any other type. A batch comes back as a root frame from the sender to itself, with no value or
 input, and one child frame per call.
@@ -111,8 +143,8 @@ work for any explorer built like Blockscout.
 | Parsing | `calls` is read, with each `value` as an integer. For a batch, `to` and `input` are taken from the first call and `value` is the sum over all calls | `EthereumJSONRPC.Transaction` |
 | Import | `calls` is written, and updated when a block is fetched again | `Explorer.Chain.Import.Runner.Transactions` |
 | Addresses | The recipient of every call gets an address row | `Indexer.Transform.Addresses` |
-| Balances | The State tab moves the value of a batch once, through its internal transactions | `Explorer.Chain.Transaction.StateChange` |
-| API | API v2 returns `calls` for a single transaction, and `null` in lists | `BlockScoutWeb.API.V2.MonadView`, the transaction schema |
+| Balances | The State tab moves the value of a batch once: through its internal transactions, or from `calls` until the traces arrive | `Explorer.Chain.Transaction.StateChange` |
+| API | API v2 returns `calls_count` everywhere and `calls` for a single transaction (`null` in lists) | `BlockScoutWeb.API.V2.MonadView`, the transaction schema |
 | UI | None needed: the frontend draws a "Calls" table and lists the recipients under "To" whenever the API returns `calls`. One hint that said "sponsored" was reworded | frontend fork |
 
 Three of these are decisions, not consequences:
@@ -121,11 +153,18 @@ Three of these are decisions, not consequences:
   "Contract creation" label and would leave the batch out of every address's transaction list.
   The first call is the convention upstream's `eden` chain type uses for its batches. A batch
   whose first call creates a contract is therefore still a contract creation, with its address.
-- **`value` of a batch is the sum of its calls.** It is what the sender sends in total.
+- **`value` of a batch is the sum of its calls.** For a successful batch it is what the sender
+  sends in total. For a failed one it is the sum of the calls attempted, and nothing was sent.
+  Because `to` and `value` of a batch do not describe one transfer, every API response carries
+  `calls_count`: when it is above one, read the calls from the single-transaction response before
+  attributing any value to a recipient.
 - **The value of a batch is not applied at the transaction level.** On Monad each call of a batch
   is also an internal transaction from the sender, so applying the transaction's `to` and `value`
   as well would count the value twice. Upstream's `eden` code does the opposite, because Eden's
-  batched calls are not traced.
+  batched calls are not traced. Traces arrive after the block, on the devnet sometimes hours
+  after, so until a batch has internal transactions its value is moved from `calls` instead. The
+  result is the same either way, except that a call which creates a contract with value is
+  credited only once traced.
 
 Upstream's `eden` chain type has the same `calls` shape and was the model. It is not reused
 directly: it would bring Eden's fee payer handling and its balance rule, and tie the fork to
