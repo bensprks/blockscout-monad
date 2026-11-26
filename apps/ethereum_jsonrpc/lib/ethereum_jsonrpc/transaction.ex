@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: read the batched calls of Monad universal transactions (type 0x40).
 defmodule EthereumJSONRPC.Transaction do
   @moduledoc """
   Transaction format included in the return of
@@ -29,6 +30,10 @@ defmodule EthereumJSONRPC.Transaction do
 
   # EIP-2718 type of the Eden sponsored (batched) transaction: `0x76`.
   @eden_sponsored_transaction_type 118
+
+  # EIP-2718 type of the Monad universal transaction: `0x40`. It carries the same `calls` array,
+  # so with the `eden` chain type it goes through the same handling.
+  @monad_universal_transaction_type 64
 
   @post_exec_tx_type 0x7D
   @zero_address_hash_string "0x0000000000000000000000000000000000000000"
@@ -63,7 +68,11 @@ defmodule EthereumJSONRPC.Transaction do
                              fee_payer_address_hash: EthereumJSONRPC.address(),
                              calls: [
                                %{
-                                 String.t() => EthereumJSONRPC.address() | non_neg_integer() | String.t() | nil
+                                 String.t() =>
+                                   EthereumJSONRPC.address()
+                                   | non_neg_integer()
+                                   | String.t()
+                                   | nil
                                }
                              ]
                            ]
@@ -608,8 +617,23 @@ defmodule EthereumJSONRPC.Transaction do
   # array instead of the standard `gas`, `to`, `input` and `value` fields. The first call provides
   # the compatibility values for `to` and `input`, while `value` is the sum across all the calls.
   # An empty `calls` array produces an empty input and a zero value.
+  #
+  # A Monad universal transaction (type `0x40`) has the standard fields next to `calls`, but the
+  # node sets `to` to `null`, `value` to zero and `input` to empty unless there is exactly one
+  # call, so the same derivation applies. For a single call both sources agree. A response without
+  # calls, as nodes returned before batching existed, is left as it is.
   @spec eden_compatibility_fields(%{String.t() => any()}) :: %{String.t() => any()}
-  defp eden_compatibility_fields(%{"type" => @eden_sponsored_transaction_type} = elixir) do
+  defp eden_compatibility_fields(
+         %{"type" => @monad_universal_transaction_type, "calls" => [_ | _]} = elixir
+       ),
+       do: fields_from_calls(elixir)
+
+  defp eden_compatibility_fields(%{"type" => @eden_sponsored_transaction_type} = elixir),
+    do: fields_from_calls(elixir)
+
+  defp eden_compatibility_fields(elixir), do: elixir
+
+  defp fields_from_calls(elixir) do
     calls = Map.get(elixir, "calls") || []
     first_call = List.first(calls) || %{}
 
@@ -619,8 +643,6 @@ defmodule EthereumJSONRPC.Transaction do
     |> Map.put("input", Map.get(first_call, "input") || "0x")
     |> Map.put("value", Enum.reduce(calls, 0, &((Map.get(&1, "value") || 0) + &2)))
   end
-
-  defp eden_compatibility_fields(elixir), do: elixir
 
   defp chain_type_fields(params, elixir) do
     case chain_type() do
@@ -657,7 +679,8 @@ defmodule EthereumJSONRPC.Transaction do
             wrapped_to_address_hash: Map.get(wrapped, "to"),
             wrapped_gas: quantity_to_integer(Map.get(wrapped, "gas")),
             wrapped_gas_price: quantity_to_integer(Map.get(wrapped, "gasPrice")),
-            wrapped_max_priority_fee_per_gas: quantity_to_integer(Map.get(wrapped, "maxPriorityFeePerGas")),
+            wrapped_max_priority_fee_per_gas:
+              quantity_to_integer(Map.get(wrapped, "maxPriorityFeePerGas")),
             wrapped_max_fee_per_gas: quantity_to_integer(Map.get(wrapped, "maxFeePerGas")),
             wrapped_value: quantity_to_integer(Map.get(wrapped, "value")),
             wrapped_input: Map.get(wrapped, "input"),
@@ -797,7 +820,10 @@ defmodule EthereumJSONRPC.Transaction do
     request(%{
       id: id,
       method: "eth_call",
-      params: [%{to: to, from: from, data: data, gas: gas, gasPrice: gas_price, value: value}, block]
+      params: [
+        %{to: to, from: from, data: data, gas: gas, gasPrice: gas_price, value: value},
+        block
+      ]
     })
   end
 

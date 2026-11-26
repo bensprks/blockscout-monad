@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: cover the batched calls of Monad universal transactions (type 0x40).
 defmodule EthereumJSONRPC.EdenTest do
   use ExUnit.Case, async: true
 
@@ -61,7 +62,9 @@ defmodule EthereumJSONRPC.EdenTest do
                  "type" => 118,
                  "gasLimit" => 42_000,
                  "feePayer" => @fee_payer_address_hash,
-                 "calls" => [%{"to" => @first_call_to_address_hash, "value" => 0, "input" => "0x"}]
+                 "calls" => [
+                   %{"to" => @first_call_to_address_hash, "value" => 0, "input" => "0x"}
+                 ]
                } = elixir
       end
 
@@ -149,7 +152,14 @@ defmodule EthereumJSONRPC.EdenTest do
           |> Transaction.to_elixir()
           |> Transaction.elixir_to_params()
 
-        assert %{type: 2, gas: 21_000, to_address_hash: @first_call_to_address_hash, input: "0x", value: 1} = params
+        assert %{
+                 type: 2,
+                 gas: 21_000,
+                 to_address_hash: @first_call_to_address_hash,
+                 input: "0x",
+                 value: 1
+               } = params
+
         refute Map.has_key?(params, :fee_payer_address_hash)
         refute Map.has_key?(params, :calls)
       end
@@ -200,15 +210,19 @@ defmodule EthereumJSONRPC.EdenTest do
               "logsBloom" => "0x00",
               "miner" => "0x2be4490805be0d0500b38a6687d94738a26ffc22",
               "number" => "0xafcd9e4",
-              "parentHash" => "0xaadffcba9d17d99d20c7a0ec73bd75b7b1a0b77b61c5639ed86c042dfce27da0",
-              "receiptsRoot" => "0xc56351659e0e5f72832359105b5ab38d5c6c20602262943c45a48b540ff539b1",
-              "sha3Uncles" => "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+              "parentHash" =>
+                "0xaadffcba9d17d99d20c7a0ec73bd75b7b1a0b77b61c5639ed86c042dfce27da0",
+              "receiptsRoot" =>
+                "0xc56351659e0e5f72832359105b5ab38d5c6c20602262943c45a48b540ff539b1",
+              "sha3Uncles" =>
+                "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
               "size" => "0x31c",
               "stateRoot" => "0x773da6b24a970cd5ba7cdae67d2e5b8420edd7cff1d6969b798e845e840e883b",
               "timestamp" => "0x6a344506",
               "totalDifficulty" => "0x0",
               "transactions" => [sponsored_transaction()],
-              "transactionsRoot" => "0x5c9b227047181f8d167dbdc9310a326c066d651dc2296696e8f7d561cae406d9",
+              "transactionsRoot" =>
+                "0x5c9b227047181f8d167dbdc9310a326c066d651dc2296696e8f7d561cae406d9",
               "uncles" => []
             }
           }
@@ -226,6 +240,117 @@ defmodule EthereumJSONRPC.EdenTest do
                  fee_payer_address_hash: @fee_payer_address_hash,
                  calls: [%{"to" => @first_call_to_address_hash, "value" => 0, "input" => "0x"}]
                } = transaction_params
+      end
+    end
+
+    # Response of the Monad devnet (chain 20143) for a transaction in block 2009316: one call that
+    # creates a contract, then two calls to it. The node nulls `to`, `value` and `input`.
+    describe "Monad universal transaction (type 0x40)" do
+      @created_contract_address_hash "0xe69a847cd5bc0c9480ada0b339d7f0a8cac2b667"
+      @creation_input "0x6014600c60003960146000f36000358060ff14600e57600055005b60006000fd"
+
+      defp universal_transaction(overrides \\ %{}) do
+        Map.merge(
+          %{
+            "type" => "0x40",
+            "chainId" => "0x4eaf",
+            "nonce" => "0xb",
+            "gas" => "0x1fff9",
+            "maxPriorityFeePerGas" => "0x77359400",
+            "maxFeePerGas" => "0x2f08236400",
+            "to" => nil,
+            "value" => "0x0",
+            "input" => "0x",
+            "calls" => [
+              %{"to" => nil, "value" => "0x0", "input" => @creation_input},
+              %{
+                "to" => @created_contract_address_hash,
+                "value" => "0x0",
+                "input" => "0x0000000000000000000000000000000000000000000000000000000000000001"
+              },
+              %{
+                "to" => @created_contract_address_hash,
+                "value" => "0x0",
+                "input" => "0x0000000000000000000000000000000000000000000000000000000000000002"
+              }
+            ],
+            "r" => "0xe5ce35eb9811c5d17e186e11600c0799d9a4719a713c80a4a371239b37b71282",
+            "s" => "0x6c3aaf73852f64f79198e1dce37d56a4160d29802c4fbf2985cc66c04c5b367e",
+            "yParity" => "0x1",
+            "v" => "0x1",
+            "hash" => "0x85d0c6248d284c88298fcae85141ea77594f855d22ff62f7884ca465feae5ab9",
+            "blockHash" => "0x5b0801f5ec22edf7fd7e63fa9fb1a8724f56080f306f28a8341f7efe63211659",
+            "blockNumber" => "0x1ea8e4",
+            "transactionIndex" => "0x0",
+            "from" => "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf",
+            "gasPrice" => "0x17bfac7c00",
+            "blockTimestamp" => "0x6b074e2d",
+            "accessList" => [],
+            "authorizationList" => []
+          },
+          overrides
+        )
+      end
+
+      test "keeps the calls and derives `to` and `input` from the first one" do
+        params =
+          universal_transaction()
+          |> Transaction.to_elixir()
+          |> Transaction.elixir_to_params()
+
+        assert %{
+                 type: 64,
+                 gas: 131_065,
+                 to_address_hash: nil,
+                 input: @creation_input,
+                 value: 0,
+                 calls: [
+                   %{"to" => nil, "value" => 0, "input" => @creation_input},
+                   %{"to" => @created_contract_address_hash, "value" => 0},
+                   %{"to" => @created_contract_address_hash, "value" => 0}
+                 ]
+               } = params
+
+        refute Map.has_key?(params, :fee_payer_address_hash)
+      end
+
+      test "addresses a batch of plain calls to the first recipient and sums the values" do
+        first = "0x3dc46eb55d472b326b634ec90baf2bdc7edc1009"
+        second = "0x0000000000000000000000000000000000000001"
+
+        params =
+          %{
+            "calls" => [
+              %{"to" => first, "value" => "0x1", "input" => "0x1234"},
+              %{"to" => second, "value" => "0x2", "input" => "0xabcd"}
+            ]
+          }
+          |> universal_transaction()
+          |> Transaction.to_elixir()
+          |> Transaction.elixir_to_params()
+
+        assert %{to_address_hash: ^first, input: "0x1234", value: 3} = params
+      end
+
+      test "leaves a single call as the node reports it" do
+        to = "0x680f7baa6156aa443f32d9912f605d351e5baa6b"
+
+        params =
+          %{
+            "to" => to,
+            "value" => "0x5",
+            "calls" => [%{"to" => to, "value" => "0x5", "input" => "0x"}]
+          }
+          |> universal_transaction()
+          |> Transaction.to_elixir()
+          |> Transaction.elixir_to_params()
+
+        assert %{
+                 to_address_hash: ^to,
+                 input: "0x",
+                 value: 5,
+                 calls: [%{"to" => ^to, "value" => 5}]
+               } = params
       end
     end
   end
