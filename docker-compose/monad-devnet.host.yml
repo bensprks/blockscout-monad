@@ -22,6 +22,11 @@ services:
     cpus: 0.1
     mem_limit: 128m
 
+  # The base step hands the data directory to uid 2000. Postgres runs as the image's user
+  # here (see db), so the step must do nothing: it runs again on every "up".
+  db-init:
+    entrypoint: !override ["true"]
+
   db:
     # The base service publishes Postgres on every interface, with a password that is public.
     ports: !reset []
