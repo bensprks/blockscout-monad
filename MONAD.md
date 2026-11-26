@@ -3,8 +3,8 @@
 Added by the Monad fork on 2026-11-20.
 
 This is a fork of Blockscout used as a reference for what a block explorer has to change to
-support Monad's universal transaction type (`0x40`). It tracks the protocol in phases; only phase 0
-is implemented.
+support Monad's universal transaction type (`0x40`). It tracks the protocol in phases: phase 0 and
+batch calls are implemented.
 
 | Repository | Upstream | Base |
 | --- | --- | --- |
@@ -46,8 +46,8 @@ them.
   get a 502 from the proxy.
 - Frontend fork: "Txn type: 64" is shown as "Txn type: 64 (Universal, 0x40)".
 
-There is no `monad` chain type yet. A chain type exists to hold extra columns and parsing, and
-phase 0 has neither.
+Phase 0 itself needs no chain type: it has no extra columns or parsing. Batch calls do; see
+"Batch calls" below.
 
 ### Verified on the devnet
 
@@ -70,6 +70,82 @@ call data, logs, access lists and failed transactions of type `0x40` have not be
 
 Compared with a type `0x2` transaction object from the same node, a type `0x40` one has no
 `accessList` key (type `0x2` returns `[]`). Blockscout does not read that key.
+
+## Batch calls
+
+Since 2026-11-25 the devnet node (`Monad/v0.12.2-rc-594`) returns a `calls` array on every type
+`0x40` transaction, next to `accessList` and `authorizationList`:
+
+```json
+"to": null, "value": "0x0", "input": "0x",
+"calls": [
+  { "to": null, "value": "0x0", "input": "0x6014…" },
+  { "to": "0xe69a…b667", "value": "0x0", "input": "0x…01" }
+]
+```
+
+With exactly one call, `to`, `value` and `input` repeat that call. Otherwise the node sets them to
+`null`, `0x0` and `0x`. The receipt is unchanged; when a call creates a contract, its
+`contractAddress` is set.
+
+`debug_traceTransaction` with `callTracer` returns a single-call transaction as one frame, as for
+any other type. A batch comes back as a root frame from the sender to itself, with no value or
+input, and one child frame per call.
+
+### What an unmodified explorer shows
+
+Blockscout keeps importing these blocks, but it drops `calls` and reads the empty `to` as a
+contract creation. Every batch is labelled "Contract creation", the transaction page shows no
+recipients, values or call data, and the addresses a batch calls do not list it. The calls are
+visible only as internal transactions, one per child frame.
+
+### What this fork changes
+
+The fork adds a `monad` chain type. Everything it does is listed here, so the same list is the
+work for any explorer built like Blockscout.
+
+| Area | Change | Where |
+| --- | --- | --- |
+| Chain type | `CHAIN_TYPE=monad` and its repo are registered | `config/config_helper.exs`, `Explorer.Repo`, the repo lists under `config/` |
+| Storage | A nullable `calls` column (`jsonb`) on `transactions` | `apps/explorer/priv/monad/migrations`, `Explorer.Chain.Transaction` |
+| Parsing | `calls` is read, with each `value` as an integer. For a batch, `to` and `input` are taken from the first call and `value` is the sum over all calls | `EthereumJSONRPC.Transaction` |
+| Import | `calls` is written, and updated when a block is fetched again | `Explorer.Chain.Import.Runner.Transactions` |
+| Addresses | The recipient of every call gets an address row | `Indexer.Transform.Addresses` |
+| Balances | The State tab moves the value of a batch once, through its internal transactions | `Explorer.Chain.Transaction.StateChange` |
+| API | API v2 returns `calls` for a single transaction, and `null` in lists | `BlockScoutWeb.API.V2.MonadView`, the transaction schema |
+| UI | None needed: the frontend draws a "Calls" table and lists the recipients under "To" whenever the API returns `calls`. One hint that said "sponsored" was reworded | frontend fork |
+
+Three of these are decisions, not consequences:
+
+- **`to` of a batch is its first call.** The node reports `null`. Leaving it would keep the
+  "Contract creation" label and would leave the batch out of every address's transaction list.
+  The first call is the convention upstream's `eden` chain type uses for its batches. A batch
+  whose first call creates a contract is therefore still a contract creation, with its address.
+- **`value` of a batch is the sum of its calls.** It is what the sender sends in total.
+- **The value of a batch is not applied at the transaction level.** On Monad each call of a batch
+  is also an internal transaction from the sender, so applying the transaction's `to` and `value`
+  as well would count the value twice. Upstream's `eden` code does the opposite, because Eden's
+  batched calls are not traced.
+
+Upstream's `eden` chain type has the same `calls` shape and was the model. It is not reused
+directly: it would bring Eden's fee payer handling and its balance rule, and tie the fork to
+changes made for another chain. The address step and the API schema of a call are shared with it.
+
+A chain type is chosen at compile time, so `CHAIN_TYPE` is a build argument and must be set to the
+same value at run time. The devnet profile does both. Blocks imported before the switch keep
+their old rows until they are fetched again. Blockscout does that for blocks marked with
+`refetch_needed` whose numbers are in `missing_block_ranges`; `Explorer.Chain.Block.set_refetch_needed/1`
+does both.
+
+### Limits
+
+- An address that is called by a batch, but not by its first call, does not list the batch under
+  its transactions. It does list the call under its internal transactions.
+- List badges follow the first call, so a batch reads as "Contract call" or "Coin transfer". There
+  is no "batch" badge.
+- The frontend shows the "Calls" table only after "View details" is clicked.
+- No batch on the devnet moves value yet. The balance rule is covered by tests, not by live data.
+- A transaction with an empty `calls` array is left as the node reports it.
 
 ## Running against the devnet
 
@@ -107,6 +183,7 @@ in total), and expects the two images to be built beforehand.
 # Build under whatever limit the host needs. With systemd, for example:
 systemd-run --user --scope -p CPUQuota=300% -p Nice=19 \
   docker build -t blockscout-monad-backend:local --build-arg RELEASE_VERSION=12.0.4 \
+  --build-arg CHAIN_TYPE=monad \
   -f docker/Dockerfile .
 # and the same for blockscout-monad-frontend:local, from the frontend checkout.
 
@@ -173,19 +250,19 @@ become relevant once transactions without an ECDSA signature or without a single
 
 ## Later phases
 
-Nothing below is implemented. It records where the work will land.
+Apart from batch calls, nothing below is implemented. It records where the work will land.
 
 | Feature | RPC change in the specification | Explorer work |
 | --- | --- | --- |
-| Batch calls | `calls: [{to, value, input}]`; `to`, `value` and `input` nulled when there is not exactly one call | New column, parsing, API field and UI. Address and balance indexing must follow each call, not only `to`. |
+| Batch calls | `calls: [{to, value, input}]`; `to`, `value` and `input` nulled when there is not exactly one call | Done; see "Batch calls" above. |
 | Fee sponsorship | `feePayer` on the transaction | New column, API field and UI. Fee attribution moves from `from` to the payer. |
 | Ordering and storage charges | `fee` on the receipt; `gasUsed` becomes gas charged | New receipt column, and fee display must use `fee` instead of `gasUsed × effectiveGasPrice`. No upstream precedent. |
 | Encrypted transactions | Decrypted values appear in the existing fields | None expected for an RPC-based explorer. |
 
-Upstream already supports a transaction type with the same `calls` and `feePayer` JSON shape: the
-`eden` chain type, added in `blockscout/blockscout#14643`. When batch calls or sponsorship reach
-the devnet, add a `monad` chain type modelled on it rather than designing one from scratch. The
-frontend renders `fee_payer` and `calls` whenever the API returns them.
+Upstream's `eden` chain type, added in `blockscout/blockscout#14643`, also carries `feePayer` in
+the JSON shape the specification uses. When sponsorship reaches the devnet, extend the `monad`
+chain type from that code: a `fee_payer_address_hash` column, the API field, and fee attribution
+to the payer. The frontend already renders `fee_payer` whenever the API returns it.
 
 A view of the raw feature map, decoded from `debug_getRawTransaction`, would need a type `0x40`
 codec in the frontend. Use the `viem/monad` module from `haythemsellami/viem#1`, vendored the way
