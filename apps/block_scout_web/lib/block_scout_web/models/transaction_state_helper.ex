@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: load the balances of the recipients of Monad batched calls.
 defmodule BlockScoutWeb.Models.TransactionStateHelper do
   @moduledoc """
     Transaction state changes related functions
@@ -157,7 +158,7 @@ defmodule BlockScoutWeb.Models.TransactionStateHelper do
 
   defp put_fee_payer_coin_balance(coin_balances, _transaction, _previous_block_number, _options), do: coin_balances
 
-  if @chain_type == :eden do
+  if @chain_type in [:eden, :monad] do
     alias Explorer.Chain.Address
 
     defp put_calls_recipients_coin_balances(coin_balances, transaction, previous_block_number, options) do

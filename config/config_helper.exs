@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: register the monad chain type and its repo.
 defmodule ConfigHelper do
   require Logger
 
@@ -16,6 +17,7 @@ defmodule ConfigHelper do
         {:eden, nil} => [Explorer.Repo.Eden],
         {:ethereum, nil} => [Explorer.Repo.Beacon],
         {:filecoin, nil} => [Explorer.Repo.Filecoin],
+        {:monad, nil} => [Explorer.Repo.Monad],
         {:optimism, nil} => [Explorer.Repo.Optimism],
         {:rsk, nil} => [Explorer.Repo.RSK],
         {:scroll, nil} => [Explorer.Repo.Scroll],
@@ -459,6 +461,7 @@ defmodule ConfigHelper do
     "eden" => :eden,
     "ethereum" => :ethereum,
     "filecoin" => :filecoin,
+    "monad" => :monad,
     "optimism" => :optimism,
     "rsk" => :rsk,
     "scroll" => :scroll,

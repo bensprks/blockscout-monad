@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: describe the calls of Monad universal transactions.
 defmodule BlockScoutWeb.Schemas.API.V2.Transaction.ChainTypeCustomizations do
   @moduledoc false
   alias BlockScoutWeb.API.V2.ZkSyncView
@@ -206,6 +207,16 @@ defmodule BlockScoutWeb.Schemas.API.V2.Transaction.ChainTypeCustomizations do
             calls: %Schema{type: :array, items: EdenCall, nullable: true}
           },
           required: [:fee_payer, :calls]
+        )
+
+      :monad ->
+        schema
+        |> Helper.extend_schema(
+          properties: %{
+            calls: %Schema{type: :array, items: EdenCall, nullable: true},
+            calls_count: %Schema{type: :integer, nullable: true}
+          },
+          required: [:calls, :calls_count]
         )
 
       :suave ->

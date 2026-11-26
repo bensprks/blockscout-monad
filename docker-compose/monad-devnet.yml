@@ -54,9 +54,13 @@ services:
       dockerfile: ./docker/Dockerfile
       args:
         RELEASE_VERSION: 12.0.4
+        # The chain type is chosen at compile time. See ../MONAD.md.
+        CHAIN_TYPE: monad
     links:
       - db:database
     environment:
+      # Must match the build argument above.
+      CHAIN_TYPE: monad
       ETHEREUM_JSONRPC_VARIANT: geth
       ETHEREUM_JSONRPC_HTTP_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}
       ETHEREUM_JSONRPC_TRACE_URL: ${MONAD_RPC_HTTP_URL:?set MONAD_RPC_HTTP_URL}

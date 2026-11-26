@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: register the monad chain type and its repo.
 import Config
 
 alias EthereumJSONRPC.Variant
@@ -126,6 +127,7 @@ for repo <- [
       Explorer.Repo.Celo,
       Explorer.Repo.Eden,
       Explorer.Repo.Filecoin,
+      Explorer.Repo.Monad,
       Explorer.Repo.Optimism,
       Explorer.Repo.PolygonEdge,
       Explorer.Repo.RSK,

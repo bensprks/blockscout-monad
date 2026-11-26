@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: read the calls of Monad universal transactions (type 0x40).
 defmodule EthereumJSONRPC.Transaction do
   @moduledoc """
   Transaction format included in the return of
@@ -29,6 +30,9 @@ defmodule EthereumJSONRPC.Transaction do
 
   # EIP-2718 type of the Eden sponsored (batched) transaction: `0x76`.
   @eden_sponsored_transaction_type 118
+
+  # EIP-2718 type of the Monad universal transaction: `0x40`.
+  @monad_universal_transaction_type 64
 
   @post_exec_tx_type 0x7D
   @zero_address_hash_string "0x0000000000000000000000000000000000000000"
@@ -61,6 +65,17 @@ defmodule EthereumJSONRPC.Transaction do
       @chain_type_fields quote(
                            do: [
                              fee_payer_address_hash: EthereumJSONRPC.address(),
+                             calls: [
+                               %{
+                                 String.t() => EthereumJSONRPC.address() | non_neg_integer() | String.t() | nil
+                               }
+                             ]
+                           ]
+                         )
+
+    :monad ->
+      @chain_type_fields quote(
+                           do: [
                              calls: [
                                %{
                                  String.t() => EthereumJSONRPC.address() | non_neg_integer() | String.t() | nil
@@ -174,6 +189,9 @@ defmodule EthereumJSONRPC.Transaction do
        * `"gasLimit"` - `t:EthereumJSONRPC.quantity/0` of gas provided by the sender of a sponsored transaction (used by Eden).
        * `"calls"` - `t:list/0` of the calls batched in a sponsored transaction (used by Eden).
        * `"feePayer"` - `t:EthereumJSONRPC.address/0` of the sponsor which pays for the transaction (used by Eden).
+      """
+    :monad -> """
+       * `"calls"` - `t:list/0` of the calls batched in a universal transaction (used by Monad).
       """
     _ -> ""
   end}
@@ -574,6 +592,7 @@ defmodule EthereumJSONRPC.Transaction do
   defp chain_type_normalization(elixir) do
     case chain_type() do
       :eden -> eden_compatibility_fields(elixir)
+      :monad -> monad_compatibility_fields(elixir)
       :optimism -> optimism_compatibility_fields(elixir)
       _ -> elixir
     end
@@ -621,6 +640,23 @@ defmodule EthereumJSONRPC.Transaction do
   end
 
   defp eden_compatibility_fields(elixir), do: elixir
+
+  # A Monad universal transaction (EIP-2718 type `0x40`) carries an ordered `calls` array next to
+  # the standard fields. With exactly one call the node repeats it in `to`, `value` and `input`.
+  # With more it sets them to `null`, zero and empty, which reads as a contract creation. For such
+  # a batch the first call provides `to` and `input`, and `value` is the sum across all the calls,
+  # the convention the Eden chain type uses.
+  @spec monad_compatibility_fields(%{String.t() => any()}) :: %{String.t() => any()}
+  defp monad_compatibility_fields(
+         %{"type" => @monad_universal_transaction_type, "calls" => [first_call, _ | _] = calls} = elixir
+       ) do
+    elixir
+    |> Map.put("to", Map.get(first_call, "to"))
+    |> Map.put("input", Map.get(first_call, "input"))
+    |> Map.put("value", Enum.reduce(calls, 0, &(Map.get(&1, "value") + &2)))
+  end
+
+  defp monad_compatibility_fields(elixir), do: elixir
 
   defp chain_type_fields(params, elixir) do
     case chain_type() do
@@ -676,6 +712,11 @@ defmodule EthereumJSONRPC.Transaction do
       :eden ->
         put_if_present(params, elixir, [
           {"feePayer", :fee_payer_address_hash},
+          {"calls", :calls}
+        ])
+
+      :monad ->
+        put_if_present(params, elixir, [
           {"calls", :calls}
         ])
 
@@ -868,11 +909,16 @@ defmodule EthereumJSONRPC.Transaction do
       do: {key, Enum.map(calls, &call_to_elixir/1)}
   end
 
+  if @chain_type == :monad do
+    defp entry_to_elixir({"calls" = key, calls}) when is_list(calls),
+      do: {key, Enum.map(calls, &call_to_elixir/1)}
+  end
+
   defp entry_to_elixir(_) do
     {:ignore, :ignore}
   end
 
-  if @chain_type == :eden do
+  if @chain_type in [:eden, :monad] do
     @spec call_to_elixir(%{String.t() => any()}) :: %{String.t() => any()}
     defp call_to_elixir(call) do
       %{

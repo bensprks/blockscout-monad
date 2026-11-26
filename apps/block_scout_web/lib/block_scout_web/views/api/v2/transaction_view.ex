@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LicenseRef-Blockscout
+# Modified 2026-11-26: return the calls of Monad universal transactions.
 defmodule BlockScoutWeb.API.V2.TransactionView do
   use BlockScoutWeb, :view
 
@@ -1247,6 +1248,11 @@ defmodule BlockScoutWeb.API.V2.TransactionView do
       conn,
       watchlist_names
     )
+  end
+
+  defp do_with_chain_type_fields(result, :monad, transaction, single_transaction?, _conn, _watchlist_names) do
+    # credo:disable-for-next-line Credo.Check.Design.AliasUsage
+    BlockScoutWeb.API.V2.MonadView.extend_transaction_json_response(result, transaction, single_transaction?)
   end
 
   defp do_with_chain_type_fields(result, :stability, transaction, _single_transaction?, _conn, _watchlist_names) do
