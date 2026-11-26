@@ -10,10 +10,13 @@ defmodule BlockScoutWeb.API.V2.MonadView do
     alias Explorer.Chain.{Address, Transaction}
 
     @doc """
-    Extends the JSON output with the ordered list of the calls of a universal transaction.
+    Extends the JSON output with the calls of a universal transaction: their number, and for a
+    single transaction their ordered list.
 
-    The field is `nil` for the transactions of other types. As with the token transfers, the calls
-    are rendered for a single transaction only to keep the list responses small.
+    Both fields are `nil` for the transactions of other types. As with the token transfers, the
+    calls are rendered for a single transaction only to keep the list responses small. The number
+    is always there: the `to` and the `value` of a transaction with more than one call are derived
+    from all of its calls, so a client must not read them as one transfer to one recipient.
 
     ## Parameters
     - `out_json`: A map defining the output JSON which will be extended.
@@ -24,13 +27,18 @@ defmodule BlockScoutWeb.API.V2.MonadView do
     - A map extended with the data related to Monad.
     """
     @spec extend_transaction_json_response(map(), Transaction.t(), boolean()) :: map()
-    def extend_transaction_json_response(out_json, %Transaction{calls: calls}, true = _single_transaction?)
+    def extend_transaction_json_response(out_json, %Transaction{calls: calls}, single_transaction?)
         when is_list(calls) do
-      Map.put(out_json, "calls", Enum.map(calls, &prepare_call/1))
+      out_json
+      |> Map.put("calls_count", length(calls))
+      |> Map.put("calls", if(single_transaction?, do: Enum.map(calls, &prepare_call/1)))
     end
 
-    def extend_transaction_json_response(out_json, %Transaction{}, _single_transaction?),
-      do: Map.put(out_json, "calls", nil)
+    def extend_transaction_json_response(out_json, %Transaction{}, _single_transaction?) do
+      out_json
+      |> Map.put("calls_count", nil)
+      |> Map.put("calls", nil)
+    end
 
     # A call is stored as it comes from the JSON RPC response: `to` is a plain address string which
     # is `nil` for a contract creation call, `value` is an integer and `input` is a hex string.

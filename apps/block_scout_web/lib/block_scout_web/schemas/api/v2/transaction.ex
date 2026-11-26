@@ -213,9 +213,10 @@ defmodule BlockScoutWeb.Schemas.API.V2.Transaction.ChainTypeCustomizations do
         schema
         |> Helper.extend_schema(
           properties: %{
-            calls: %Schema{type: :array, items: EdenCall, nullable: true}
+            calls: %Schema{type: :array, items: EdenCall, nullable: true},
+            calls_count: %Schema{type: :integer, nullable: true}
           },
-          required: [:calls]
+          required: [:calls, :calls_count]
         )
 
       :suave ->
