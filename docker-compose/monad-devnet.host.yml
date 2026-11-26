@@ -1,0 +1,67 @@
+# Added by the Monad fork on 2026-11-26. See ../MONAD.md.
+#
+# Overrides for running the devnet explorer on a host it shares with other workloads, such as
+# the node itself. Use it on top of the devnet profile:
+#
+#   docker compose -f monad-devnet.yml -f monad-devnet.host.yml up -d
+#
+# What it changes:
+#   - Only the explorer is published, on one address and port. The database port is not.
+#   - Every service has a CPU and a memory limit.
+#   - Images are not built by compose. Build them first, under whatever limit the host needs,
+#     and tag them blockscout-monad-backend:local and blockscout-monad-frontend:local.
+#
+# From the shell or the .env file, on top of the devnet profile's variables:
+#   EXPLORER_BIND   address the explorer listens on (default 127.0.0.1)
+#   EXPLORER_PORT   port the explorer listens on (default 8090)
+#   EXPLORER_HOST   host name browsers use to reach it (default localhost)
+
+services:
+  redis-db:
+    restart: always
+    cpus: 0.1
+    mem_limit: 128m
+
+  # The base step hands the data directory to uid 2000. Postgres runs as the image's user
+  # here (see db), so the step must do nothing: it runs again on every "up".
+  db-init:
+    entrypoint: !override ["true"]
+
+  db:
+    # The base service publishes Postgres on every interface, with a password that is public.
+    ports: !reset []
+    # Start as the image's own user. With rootless Podman an empty volume takes the image's
+    # ownership on every start, so the base service's fixed uid can never initialise it.
+    user: !reset null
+    cpus: 1
+    mem_limit: 4g
+
+  backend:
+    # Podman has no container links, and the backend already reaches the database as "db".
+    links: !reset []
+    build: !reset null
+    pull_policy: never
+    cpus: 1
+    mem_limit: 3g
+    environment:
+      BLOCKSCOUT_HOST: ${EXPLORER_HOST:-localhost}
+      # Logs go to the container's output, so nothing is written into the checkout.
+      DISABLE_FILE_LOGGING: 'true'
+
+  frontend:
+    build: !reset null
+    pull_policy: never
+    cpus: 0.5
+    mem_limit: 1g
+    environment:
+      NEXT_PUBLIC_API_HOST: ${EXPLORER_HOST:-localhost}
+      NEXT_PUBLIC_API_PORT: ${EXPLORER_PORT:-8090}
+      NEXT_PUBLIC_APP_HOST: ${EXPLORER_HOST:-localhost}
+      NEXT_PUBLIC_APP_PORT: ${EXPLORER_PORT:-8090}
+
+  proxy:
+    restart: always
+    cpus: 0.1
+    mem_limit: 64m
+    ports: !override
+      - "${EXPLORER_BIND:-127.0.0.1}:${EXPLORER_PORT:-8090}:80"
